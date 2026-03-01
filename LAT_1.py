@@ -9,7 +9,7 @@ import os
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="PUO Geomatik Plotter", layout="wide")
 
-# --- 1. SISTEM PASSWORD (LOCK) ---
+# --- 1. SISTEM PASSWORD ---
 st.sidebar.header("🔒 Akses Sistem")
 password_input = st.sidebar.text_input("Masukkan Password", type="password")
 
@@ -22,7 +22,7 @@ if password_input != "admin":
 
 st.sidebar.success("Akses Dibenarkan ✅")
 
-# --- FUNGSI-FUNGSI MATEMATIK & GEOMETRI ---
+# --- FUNGSI-FUNGSI MATEMATIK ---
 def to_dms(deg):
     d = int(deg)
     m = int((deg - d) * 60)
@@ -42,18 +42,17 @@ def kira_bearing_jarak(p1, p2):
 def kira_luas(x, y):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-# --- FUNGSI EKSPORT KE QGIS (GEOJSON) ---
-def convert_to_geojson(df, luas):
+# --- FUNGSI EKSPORT KE QGIS (DENGAN CRS) ---
+def convert_to_geojson(df, luas, epsg):
     features = []
     coords = []
-    # Koordinat di sini akan menggunakan nilai yang sudah dilaraskan
     for _, row in df.iterrows():
-        coords.append([float(row['E']), float(row['N'])])
-    coords.append([float(df.iloc[0]['E']), float(df.iloc[0]['N'])]) 
+        coords.append([round(float(row['E']), 3), round(float(row['N']), 3)])
+    coords.append([round(float(df.iloc[0]['E']), 3), round(float(df.iloc[0]['N']), 3)]) 
     
     poly_feature = {
         "type": "Feature",
-        "properties": {"Layer": "Lot_Poligon", "Luas_m2": round(luas, 3), "Program": "PUO Geomatik Plotter"},
+        "properties": {"Layer": "Lot_Poligon", "Luas_m2": round(luas, 3)},
         "geometry": {"type": "Polygon", "coordinates": [coords]}
     }
     features.append(poly_feature)
@@ -64,16 +63,26 @@ def convert_to_geojson(df, luas):
         point_feature = {
             "type": "Feature",
             "properties": {"STN": int(row['STN']), "Bearing": brg, "Jarak_m": round(dist, 3)},
-            "geometry": {"type": "Point", "coordinates": [float(row['E']), float(row['N'])]}
+            "geometry": {"type": "Point", "coordinates": [round(float(row['E']), 3), round(float(row['N']), 3)]}
         }
         features.append(point_feature)
-    return json.dumps({"type": "FeatureCollection", "features": features}, indent=4)
+
+    # Tambah maklumat CRS supaya QGIS tak pening
+    geojson_data = {
+        "type": "FeatureCollection",
+        "crs": {
+            "type": "name",
+            "properties": {"name": f"urn:ogc:def:crs:EPSG::{epsg}"}
+        },
+        "features": features
+    }
+    return json.dumps(geojson_data, indent=4)
 
 # --- SIDEBAR TETAPAN ---
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Tetapan Peta")
 on_off_satelit = st.sidebar.checkbox("🌎 Layer Satelit (On/Off)", value=True)
-epsg_code = st.sidebar.text_input("Kod EPSG (Cth: 4390):", "4390")
+epsg_code = st.sidebar.text_input("Kod EPSG (Cth Cassini Perak: 4390):", "4390")
 margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin Meter)", 0, 100, 5)
 
 st.sidebar.header("🏷️ Tetapan Label")
@@ -99,32 +108,29 @@ with col_text:
 st.divider()
 
 # --- MUAT NAIK FAIL ---
-uploaded_file = st.file_uploader("📂 Muat naik fail CSV (STN, E, N)", type=["csv"])
+uploaded_file = st.file_uploader("📂 Muat naik fail CSV (Pastikan ada kolum STN, E, N)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+    
+    # Pastikan kolum sentiasa Huruf Besar untuk elak error
+    df.columns = [c.upper() for c in df.columns]
 
-    # --- 2. LOGIK PELARASAN KOORDINAT KE STESEN 1 ---
+    # --- LOGIK PELARASAN KOORDINAT MUTLAK ---
     # Target: U (N) = 6757.654, B (E) = 115594.785
     target_n = 6757.654
     target_e = 115594.785
 
-    if 1 in df['STN'].values:
+    if 'STN' in df.columns and 1 in df['STN'].values:
         idx_1 = df[df['STN'] == 1].index[0]
-        current_e = df.at[idx_1, 'E']
-        current_n = df.at[idx_1, 'N']
+        shift_e = target_e - df.at[idx_1, 'E']
+        shift_n = target_n - df.at[idx_1, 'N']
         
-        # Kira beza (shift)
-        shift_e = target_e - current_e
-        shift_n = target_n - current_n
-        
-        # Anjakkan keseluruhan data
         df['E'] = df['E'] + shift_e
         df['N'] = df['N'] + shift_n
-        
-        st.success(f"✅ Stesen 1 telah ditetapkan ke koordinat: U={target_n}, B={target_e}")
+        st.success(f"📍 Stesen 1 dilaraskan ke: U={target_n}, B={target_e}")
     else:
-        st.warning("⚠️ Stesen nombor 1 tidak ditemui dalam CSV. Pelarasan koordinat tidak dilakukan.")
+        st.error("❌ Ralat: Kolum 'STN' atau stesen nombor 1 tidak dijumpai dalam CSV.")
 
     st.dataframe(df.set_index('STN'), use_container_width=True)
 
@@ -137,8 +143,7 @@ if uploaded_file is not None:
         # --- SIDEBAR EKSPORT ---
         st.sidebar.markdown("---")
         st.sidebar.subheader("🚀 Eksport ke QGIS")
-        # Fail GeoJSON sekarang akan mempunyai koordinat yang sudah dilaraskan
-        geojson_output = convert_to_geojson(df, luas_semasa)
+        geojson_output = convert_to_geojson(df, luas_semasa, epsg_code)
         st.sidebar.download_button(label="🌍 MUAT TURUN FAIL QGIS", data=geojson_output, file_name="plot_puo.geojson", mime="application/json", type="primary")
 
         # --- PLOTTING MATPLOTLIB ---
@@ -151,7 +156,7 @@ if uploaded_file is not None:
 
         for i in range(n_points):
             p1, p2 = points[i], points[(i + 1) % n_points]
-            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='yellow' if on_off_satelit else 'black', marker='o', linewidth=3, zorder=4)
+            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='yellow' if on_off_satelit else 'black', marker='o', linewidth=2, zorder=4)
             
             brg_str, dist, brg_val = kira_bearing_jarak(p1, p2)
             mid_x, mid_y = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
@@ -160,7 +165,6 @@ if uploaded_file is not None:
                 dx, dy = p2[0] - p1[0], p2[1] - p1[1]
                 mag = np.sqrt(dx**2 + dy**2)
                 nx, ny = -dy/mag, dx/mag 
-                
                 if ((mid_x + nx) - cx_mean)**2 + ((mid_y + ny) - cy_mean)**2 < (mid_x - cx_mean)**2 + (mid_y - cy_mean)**2:
                     nx, ny = -nx, -ny
                 
@@ -168,37 +172,27 @@ if uploaded_file is not None:
                 if rot < -90: rot += 180
                 if rot > 90: rot -= 180
 
-                # Label di luar garisan
-                ax.text(mid_x + nx*0.7, mid_y + ny*0.7, brg_str, color='cyan' if on_off_satelit else 'red', 
-                        fontsize=9, fontweight='bold', ha='center', va='center', rotation=rot, zorder=5)
-                ax.text(mid_x + nx*1.4, mid_y + ny*1.4, f"{dist:.3f}m", color='white' if on_off_satelit else 'blue', 
-                        fontsize=8, fontweight='bold', ha='center', va='center', rotation=rot, zorder=5)
+                ax.text(mid_x + nx*0.7, mid_y + ny*0.7, brg_str, color='cyan' if on_off_satelit else 'red', fontsize=9, rotation=rot, ha='center', fontweight='bold')
+                ax.text(mid_x + nx*1.4, mid_y + ny*1.4, f"{dist:.3f}m", color='white' if on_off_satelit else 'blue', fontsize=8, rotation=rot, ha='center', fontweight='bold')
 
-        # Label Stesen (Kotak Kuning di luar bucu)
         if papar_stn:
             for _, row in df.iterrows():
                 dx_s = row['E'] - cx_mean
                 dy_s = row['N'] - cy_mean
                 dist_s = np.sqrt(dx_s**2 + dy_s**2)
-                
-                offset = 1.6
-                label_e = row['E'] + (dx_s / dist_s) * offset
-                label_n = row['N'] + (dy_s / dist_s) * offset
-
-                ax.text(label_e, label_n, f"{int(row['STN'])}", color='black', fontweight='bold', 
-                        fontsize=10, ha='center', va='center',
-                        zorder=6, bbox=dict(facecolor='yellow', alpha=0.9, boxstyle='round,pad=0.3'))
+                label_e = row['E'] + (dx_s / dist_s) * 1.5
+                label_n = row['N'] + (dy_s / dist_s) * 1.5
+                ax.text(label_e, label_n, f"{int(row['STN'])}", color='black', fontweight='bold', bbox=dict(facecolor='yellow', alpha=0.9, boxstyle='round'))
 
         if st.session_state.tampilkan_luas or papar_luas_label:
             ax.fill(df['E'], df['N'], alpha=0.2, color='green', zorder=2)
-            ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=14, color='darkgreen', 
-                    fontweight='bold', ha='center', bbox=dict(facecolor='white', alpha=0.7))
+            ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=14, color='darkgreen', fontweight='bold', ha='center', bbox=dict(facecolor='white', alpha=0.7))
 
         if on_off_satelit:
             try:
                 cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=cx.providers.Esri.WorldImagery, zorder=0)
             except:
-                st.error("Gagal muat satelit. Pastikan Kod EPSG betul.")
+                st.error("Gagal muat satelit. Sila pastikan Kod EPSG (cth: 4390) betul.")
 
         ax.set_aspect('equal')
         ax.set_xlim(df['E'].min() - margin_meter - 2, df['E'].max() + margin_meter + 2)
