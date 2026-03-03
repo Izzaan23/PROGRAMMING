@@ -66,12 +66,17 @@ def kira_brg_dst(p1, p2):
     if brg < 0: brg += 360
     d = int(brg); m = int((brg-d)*60); s = round((((brg-d)*60)-m)*60,0)
     
-    # Kira angle untuk rotation label supaya selari dengan line
+    # Simpan status jika angle perlu dipusing 180 (supaya text tak upside down)
+    flipped = False
     angle = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
-    if angle > 90: angle -= 180
-    if angle < -90: angle += 180
+    if angle > 90: 
+        angle -= 180
+        flipped = True
+    elif angle < -90: 
+        angle += 180
+        flipped = True
     
-    return f"{d}°{m:02d}'{s:02.0f}\"", dist, angle
+    return f"{d}°{m:02d}'{s:02.0f}\"", dist, angle, flipped
 
 def kira_luas(df):
     x = df['E'].values
@@ -136,30 +141,32 @@ if uploaded_file is not None:
                 ).add_to(m)
                 folium.CircleMarker([p1['lat'], p1['lon']], radius=5, color='red', fill=True, fill_color='red', popup=folium.Popup(info_stn, max_width=150)).add_to(m)
 
-            # --- BAHAGIAN LABEL (SIMETRI: BEARING ATAS, DISTANCE BAWAH) ---
+            # --- BAHAGIAN LABEL (FIXED SYMMETRY) ---
             if p_lbl:
-                brg_txt, dst_val, angle = kira_brg_dst([p1['E'], p1['N']], [p2['E'], p2['N']])
+                brg_txt, dst_val, angle, flipped = kira_brg_dst([p1['E'], p1['N']], [p2['E'], p2['N']])
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
                 
-                # Menggunakan flexbox untuk center dan margin negatif untuk "sandwich" garisan traverse
+                # Gunakan column-reverse jika garisan dipusing (supaya bearing tetap di atas)
+                flex_direction = "column-reverse" if flipped else "column"
+                
                 folium.map.Marker(
                     [mid_lat, mid_lon],
                     icon=folium.DivIcon(html=f"""
                         <div style="
                             transform: rotate({-angle}deg); 
                             display: flex;
-                            flex-direction: column;
+                            flex-direction: {flex_direction};
                             align-items: center;
                             justify-content: center;
-                            width: 100px;
-                            margin-left: -50px;
+                            width: 120px;
+                            margin-left: -60px;
                             pointer-events: none;">
                             <div style="
                                 font-size: {s_font-2}pt; 
                                 color: white; 
                                 font-weight: bold; 
                                 text-shadow: 1px 1px 2px black;
-                                margin-bottom: 2px;">
+                                padding-bottom: 2px;">
                                 {brg_txt}
                             </div>
                             <div style="
@@ -167,7 +174,7 @@ if uploaded_file is not None:
                                 color: #00FF00; 
                                 font-weight: bold; 
                                 text-shadow: 1px 1px 2px black;
-                                margin-top: 2px;">
+                                padding-top: 2px;">
                                 {dst_val:.2f}m
                             </div>
                         </div>""")
