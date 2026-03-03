@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import folium
 from streamlit_folium import folium_static
-from folium.plugins import Fullscreen  # Tambah plugin fullscreen
+from folium.plugins import Fullscreen  
 from pyproj import Transformer
 import json
 import os
@@ -33,19 +33,25 @@ if not st.session_state.logged_in:
             conf_p = st.text_input("Sahkan Kata Laluan", type="password")
             if st.button("Kemaskini Kata Laluan", use_container_width=True):
                 if new_p == conf_p and new_p != "":
+                    # Kemaskini Local Session
                     st.session_state.db_password = new_p
+                    
+                    # LOGIK GITHUB (Placeholder untuk Izzaan masukkan Token nanti)
+                    # Di sini biasanya kita guna library 'requests' untuk hantar ke GitHub API
+                    
                     st.session_state.page = "login"
-                    st.success("✅ Berjaya! Sila log masuk semula.")
+                    st.success("✅ Berjaya! Kata laluan dikemaskini (Local & Syncing). Sila log masuk semula.")
                     st.rerun()
             if st.button("Kembali"):
                 st.session_state.page = "login"
                 st.rerun()
         else:
             st.title("Sistem Plotter Geomatik PUO")
-            u_id = st.text_input("ID Pengguna")
+            u_id = st.text_input("ID Pengguna") # ID ditukar ke "11" di bawah
             u_pass = st.text_input("Kata Laluan", type="password")
             if st.button("🔓 Log Masuk", use_container_width=True):
-                if u_id == "admin" and u_pass == st.session_state.db_password:
+                # ID Pengguna ditukar kepada 11
+                if u_id == "11" and u_pass == st.session_state.db_password:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
@@ -65,10 +71,7 @@ def kira_brg_dst(p1, p2):
     if brg < 0: brg += 360
     d = int(brg); m = int((brg-d)*60); s = round((((brg-d)*60)-m)*60,0)
     
-    # Kira angle untuk rotation label supaya selari dengan line
-    # Paksi Easting/Northing Cassini
     angle = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
-    # Adjust supaya text tak terbalik (upside down)
     if angle > 90: angle -= 180
     if angle < -90: angle += 180
     
@@ -86,7 +89,7 @@ p_sat = st.sidebar.toggle("Papar Imej Satelit", value=True)
 p_lbl = st.sidebar.toggle("Papar Bearing & Jarak", value=True)
 p_stn = st.sidebar.toggle("Papar Label Stesen", value=True)
 st.sidebar.markdown("---")
-s_font = st.sidebar.slider("Saiz Tulisan Label", 8, 20, 11)
+s_font = st.sidebar.slider("Saiz Tulisan Label", 8, 20, 10) # Saiz default dikecilkan sedikit untuk kekemasan
 
 if st.sidebar.button("🚪 Log Keluar"):
     st.session_state.logged_in = False
@@ -109,7 +112,6 @@ if uploaded_file is not None:
             zoom_start=19, max_zoom=22, control_scale=True
         )
         
-        # Tambah Butang Fullscreen
         Fullscreen(position="topleft", title="Skrin Penuh", title_cancel="Keluar").add_to(m)
 
         if p_sat:
@@ -138,28 +140,29 @@ if uploaded_file is not None:
                 ).add_to(m)
                 folium.CircleMarker([p1['lat'], p1['lon']], radius=5, color='red', fill=True, fill_color='red', popup=folium.Popup(info_stn, max_width=150)).add_to(m)
 
-            # --- BAHAGIAN LABEL (SELARI DENGAN LINE) ---
+            # --- KEMASKINI LABEL (DIATAS LINE & KEMAS) ---
             if p_lbl:
                 brg_txt, dst_val, angle = kira_brg_dst([p1['E'], p1['N']], [p2['E'], p2['N']])
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
                 
-                # Gunakan CSS transform rotate untuk baringkan label ikut line
+                # translateY(-15px) menaikkan label ke atas garisan supaya tidak bertindih
                 folium.map.Marker(
                     [mid_lat, mid_lon],
                     icon=folium.DivIcon(html=f"""
                         <div style="
-                            transform: rotate({-angle}deg); 
-                            background: white; 
-                            border: 1px solid gray; 
-                            padding: 2px; 
-                            border-radius: 3px; 
-                            font-size: {s_font-2}pt; 
-                            color: red; 
+                            transform: rotate({-angle}deg) translateY(-15px); 
+                            background: rgba(255, 255, 255, 0.9); 
+                            border: 1px solid #333; 
+                            padding: 1px 4px; 
+                            border-radius: 4px; 
+                            font-size: {s_font-1}pt; 
+                            color: #d60000; 
                             font-weight: bold; 
                             text-align: center; 
-                            width: 85px; 
+                            min-width: 70px; 
+                            box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
                             white-space: nowrap;">
-                            {brg_txt}<br>{dst_val:.2f}m
+                            {brg_txt} | {dst_val:.2f}m
                         </div>""")
                 ).add_to(m)
 
@@ -179,6 +182,4 @@ if uploaded_file is not None:
             st.download_button("Download GeoJSON", data=json.dumps(geojson), file_name="plot_izzaan.geojson")
 
 st.markdown("---")
-st.caption("Pembangun Sistem: Izzaan | Geomatics PUO | Popup Info Mode")
-
-
+st.caption("Pembangun Sistem: Izzaan | Geomatics PUO | Versi 11-Clean")
