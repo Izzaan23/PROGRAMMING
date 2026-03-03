@@ -9,7 +9,7 @@ import json
 import os
 
 # --- 1. KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="PUO Geomatik System", layout="wide")
+st.set_page_config(page_title="Visualisasi Poligon", layout="wide")
 
 # CSS untuk Lock Header & Style
 st.markdown("""
@@ -29,6 +29,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- HEADER LOCKED (Sentiasa Ada di Semua Page) ---
+st.markdown(f"""
+    <div class="sticky-header">
+        <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
+            <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ Visualisasi Poligon</h1>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
 # --- 2. SISTEM DATABASE KATA LALUAN ---
 if "db_password" not in st.session_state:
     st.session_state.db_password = "admin123"
@@ -41,21 +51,7 @@ if "page" not in st.session_state:
 if not st.session_state.logged_in:
     _, col_mid, _ = st.columns([0.1, 4, 0.1]) 
     with col_mid:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        head_l, head_r = st.columns([1, 2.5]) 
-        with head_l:
-            if os.path.exists("logo l.png"):
-                st.image("logo l.png", width=250) 
-        with head_r:
-            st.markdown("""
-                <div style='display: flex; align-items: center; height: 150px;'>
-                    <h1 style='margin: 0; font-size: 45px; font-weight: 800; line-height: 1.2;'>
-                        SISTEM PENGURUSAN <br> MAKLUMAT TANAH
-                    </h1>
-                </div>
-                """, unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("---")
         if st.session_state.page == "reset":
             st.subheader("🔑 Set Semula Kata Laluan")
             new_p = st.text_input("Kata Laluan Baru", type="password")
@@ -82,17 +78,6 @@ if not st.session_state.logged_in:
         st.markdown("---")
         st.caption("Pembangun Sistem: Izzaan")
     st.stop()
-
-# --- HEADER LOCKED ---
-with st.container():
-    st.markdown(f"""
-        <div class="sticky-header">
-            <div style="display: flex; align-items: center; gap: 20px;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="200">
-                <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ SISTEM PENGURUSAN MAKLUMAT TANAH</h1>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
 
 # --- 4. FUNGSI GEOMATIK ---
 transformer = Transformer.from_crs("EPSG:4390", "EPSG:4326", always_xy=True)
