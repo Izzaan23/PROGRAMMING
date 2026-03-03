@@ -33,7 +33,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. SISTEM KATA LALUAN (MENGGUNAKAN URL PARAMS) ---
-# Ambil password dari URL jika ada, jika tiada guna 'admin123'
 if "pwd" in st.query_params:
     current_db_pass = st.query_params["pwd"]
 else:
@@ -58,14 +57,12 @@ if not st.session_state.logged_in:
     _, col_mid, _ = st.columns([0.1, 4, 0.1]) 
     with col_mid:
         st.markdown("<br>", unsafe_allow_html=True)
-        
         if st.session_state.page == "reset":
             st.subheader("🔑 Set Semula Kata Laluan")
             new_p = st.text_input("Kata Laluan Baru", type="password")
             conf_p = st.text_input("Sahkan Kata Laluan", type="password")
             if st.button("Kemaskini Kata Laluan", use_container_width=True):
                 if new_p == conf_p and new_p != "":
-                    # Simpan ke URL params supaya kekal bila refresh
                     st.query_params["pwd"] = new_p
                     st.session_state.page = "login"
                     st.success(f"✅ Berjaya! Kata laluan baru anda disimpan dalam URL. Sila log masuk.")
@@ -155,11 +152,16 @@ if uploaded_file is not None:
         perimeter = 0
         features_gis = []
         
+        # 1. TAMBAH POLIGON (LUAS) KE GIS
         poly_coords = [[r['lon'], r['lat']] for _, r in df.iterrows()]
         poly_coords.append(poly_coords[0])
         features_gis.append({
             "type": "Feature",
-            "properties": {"Nama": "Lot Tanah", "Luas_m2": round(luas_m2, 3)},
+            "properties": {
+                "Nama": "Lot Tanah", 
+                "Luas_m2": round(luas_m2, 3),
+                "Luas_Ekar": round(luas_ekar, 4)
+            },
             "geometry": {"type": "Polygon", "coordinates": [poly_coords]}
         })
 
@@ -169,20 +171,30 @@ if uploaded_file is not None:
             brg_txt, dst_val, angle, flipped = kira_brg_dst([p1_row['E'], p1_row['N']], [p2_row['E'], p2_row['N']])
             perimeter += dst_val
             
+            # 2. TAMBAH POINT STESEN KE GIS
             features_gis.append({
                 "type": "Feature",
-                "properties": {"Stesen": int(p1_row['STN']), "E": p1_row['E'], "N": p1_row['N']},
+                "properties": {
+                    "Stesen": int(p1_row['STN']), 
+                    "Easting": p1_row['E'], 
+                    "Northing": p1_row['N']
+                },
                 "geometry": {"type": "Point", "coordinates": [p1_row['lon'], p1_row['lat']]}
             })
+
+            # 3. TAMBAH GARISAN (BEARING & JARAK) KE GIS
             features_gis.append({
                 "type": "Feature",
-                "properties": {"Bearing": brg_txt, "Jarak": round(dst_val, 3)},
+                "properties": {
+                    "Dari_Stn": int(p1_row['STN']),
+                    "Ke_Stn": int(p2_row['STN']),
+                    "Bearing": brg_txt, 
+                    "Jarak": round(dst_val, 3)
+                },
                 "geometry": {"type": "LineString", "coordinates": [[p1_row['lon'], p1_row['lat']], [p2_row['lon'], p2_row['lat']]]}
             })
 
         poly_pts = [[r['lat'], r['lon']] for _, r in df.iterrows()]
-        
-        # TEKAN LOT KELUAR INFO LOT
         info_lot = f"<b>MAKLUMAT LOT:</b><br>Luas: {luas_m2:.2f} m²<br>Luas: {luas_ekar:.4f} Ekar<br>Perimeter: {perimeter:.2f} m"
         folium.Polygon(locations=poly_pts, color="cyan", weight=3, fill=True, fill_opacity=0.2, popup=folium.Popup(info_lot, max_width=250)).add_to(m)
         
@@ -194,9 +206,7 @@ if uploaded_file is not None:
 
         for i in range(len(df)):
             p1_row = df.iloc[i]
-            # TEKAN NO STESEN KELUAR KOORDINAT
             info_stn = f"<b>STN: {int(p1_row['STN'])}</b><br>E: {p1_row['E']:.3f}<br>N: {p1_row['N']:.3f}"
-            
             if p_point:
                 folium.CircleMarker([p1_row['lat'], p1_row['lon']], radius=s_point, color='red', fill=True, popup=info_stn).add_to(m)
             if p_stn:
