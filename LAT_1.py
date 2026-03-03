@@ -11,6 +11,24 @@ import os
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="PUO Geomatik System", layout="wide")
 
+# CSS untuk Lock Header & Style
+st.markdown("""
+    <style>
+    .stApp header {
+        z-index: 100;
+    }
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        background-color: #0e1117;
+        z-index: 99;
+        padding: 10px 0;
+        border-bottom: 1px solid #31333f;
+        margin-bottom: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- 2. SISTEM DATABASE KATA LALUAN ---
 if "db_password" not in st.session_state:
     st.session_state.db_password = "admin123"
@@ -65,6 +83,17 @@ if not st.session_state.logged_in:
         st.caption("Pembangun Sistem: Izzaan")
     st.stop()
 
+# --- HEADER LOCKED ---
+with st.container():
+    st.markdown(f"""
+        <div class="sticky-header">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="200">
+                <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ SISTEM PENGURUSAN MAKLUMAT TANAH</h1>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
 # --- 4. FUNGSI GEOMATIK ---
 transformer = Transformer.from_crs("EPSG:4390", "EPSG:4326", always_xy=True)
 
@@ -112,8 +141,6 @@ if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
     st.rerun()
 
 # --- 6. PLOTTER UTAMA ---
-st.title("📍 Plotter Interaktif Izzaan")
-
 uploaded_file = st.file_uploader("📂 Muat naik fail CSV (STN, E, N)", type=["csv"])
 
 if uploaded_file is not None:
@@ -143,23 +170,11 @@ if uploaded_file is not None:
 
         poly_pts = [[r['lat'], r['lon']] for _, r in df.iterrows()]
         
-        # Info Lot semasa tekan poligon
-        info_lot_html = f"""
-            <div style="font-family: Arial; width: 200px;">
-                <h4 style="margin:0; color: #2E86C1;">Maklumat Lot</h4><hr style="margin:5px 0;">
-                <b>Luas:</b> {luas_m2:.2f} m²<br>
-                <b>Luas:</b> {(luas_m2/4046.856):.4f} Ekar<br>
-                <b>Perimeter:</b> {perimeter:.2f} m<br>
-                <b>Bil. Garis:</b> {bil_garis}
-            </div>
-        """
-        
         folium.Polygon(
             locations=poly_pts, color="cyan", weight=3, fill=True, fill_opacity=0.2,
-            popup=folium.Popup(info_lot_html, max_width=250)
+            popup=f"Luas: {luas_m2:.2f} m²"
         ).add_to(m)
 
-        # Label Luas Static di tengah (Tanpa Box)
         if p_luas:
             folium.map.Marker(
                 [df['lat'].mean(), df['lon'].mean()],
@@ -172,26 +187,17 @@ if uploaded_file is not None:
         for i in range(len(df)):
             p1_row = df.iloc[i]
             p2_row = df.iloc[(i+1)%len(df)]
-            
-            coord_html = f"<b>STN {int(p1_row['STN'])}</b><br>E: {p1_row['E']:.3f}<br>N: {p1_row['N']:.3f}"
-            
             if p_point:
                 folium.CircleMarker([p1_row['lat'], p1_row['lon']], radius=s_point, color='red', fill=True, fill_color='red').add_to(m)
-
             if p_stn:
                 folium.map.Marker(
                     [p1_row['lat'], p1_row['lon']],
-                    icon=folium.DivIcon(html=f"<div style='font-family: Arial; color: black; font-weight: bold; font-size: {s_stn}pt; width: 40px;'>{int(p1_row['STN'])}</div>"),
-                    popup=folium.Popup(coord_html, max_width=150)
+                    icon=folium.DivIcon(html=f"<div style='font-family: Arial; color: white; font-weight: bold; font-size: {s_stn}pt; text-shadow: 2px 2px 3px black; width: 40px;'>{int(p1_row['STN'])}</div>")
                 ).add_to(m)
-
             if p_lbl:
                 brg_txt, dst_val, angle, flipped = kira_brg_dst([p1_row['E'], p1_row['N']], [p2_row['E'], p2_row['N']])
                 mid_lat, mid_lon = (p1_row['lat'] + p2_row['lat'])/2, (p1_row['lon'] + p2_row['lon'])/2
-                
-                # Mengatur arah flexbox supaya bearing di atas dan distance di bawah
                 flex_dir = "column-reverse" if flipped else "column"
-                
                 folium.map.Marker(
                     [mid_lat, mid_lon],
                     icon=folium.DivIcon(html=f"""
@@ -203,20 +209,40 @@ if uploaded_file is not None:
 
         folium_static(m, width=1100, height=600)
 
+        # --- EXPORT GIS (GeoJSON) ---
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[ [r['lon'], r['lat']] for _, r in df.iterrows() ] + [[df.iloc[0]['lon'], df.iloc[0]['lat']]] ]},
+                "properties": {"Luas_m2": luas_m2, "Perimeter": perimeter}
+            }]
+        }
+
         # --- JADUAL RINGKASAN DATA ---
         st.subheader("📊 Ringkasan Maklumat Lot")
-        summary_data = {
-            "Perkara": ["Nama Fail", "Luas (m²)", "Luas (Ekar)", "Perimeter (m)", "Bilangan Garis"],
-            "Maklumat": [uploaded_file.name, f"{luas_m2:.2f}", f"{(luas_m2/4046.856):.4f}", f"{perimeter:.2f}", bil_garis]
-        }
-        st.table(pd.DataFrame(summary_data))
+        col_summary, col_export = st.columns([3, 1])
+        with col_summary:
+            summary_data = {
+                "Perkara": ["Nama Fail", "Luas (m²)", "Luas (Ekar)", "Perimeter (m)"],
+                "Maklumat": [uploaded_file.name, f"{luas_m2:.2f}", f"{(luas_m2/4046.856):.4f}", f"{perimeter:.2f}"]
+            }
+            st.table(pd.DataFrame(summary_data))
+        
+        with col_export:
+            st.write("📂 **Export Data GIS**")
+            st.download_button(
+                label="🌍 Muat Turun Fail GIS (.geojson)",
+                data=json.dumps(geojson_data),
+                file_name=f"{uploaded_file.name.split('.')[0]}.geojson",
+                mime="application/json",
+                use_container_width=True
+            )
 
         # --- JADUAL KOORDINAT TERPERINCI ---
         st.subheader("📋 Jadual Koordinat Traverse")
         traverse_df = df[['STN', 'E', 'N']].copy()
         traverse_df['STN'] = traverse_df['STN'].astype(int)
-        traverse_df['E'] = traverse_df['E'].map('{:,.3f}'.format)
-        traverse_df['N'] = traverse_df['N'].map('{:,.3f}'.format)
         st.dataframe(traverse_df, use_container_width=True, hide_index=True)
 
 st.markdown("---")
