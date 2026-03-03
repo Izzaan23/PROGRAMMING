@@ -2,16 +2,13 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import json
 import contextily as cx
-import os
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="PUO Geomatik Plotter", layout="wide")
 
 # --- 2. SISTEM AKSES (ID & PASSWORD) ---
 st.sidebar.header("🔒 Akses Sistem")
-
 user_id = st.sidebar.text_input("ID Pengguna", placeholder="Masukkan ID anda")
 password_input = st.sidebar.text_input("Kata Laluan", type="password", placeholder="Masukkan Password")
 
@@ -19,17 +16,13 @@ if user_id == "admin" and password_input == "admin123":
     st.sidebar.success(f"Log Masuk Berjaya: {user_id.upper()} ✅")
 else:
     if user_id == "" and password_input == "":
-        st.warning("⚠️ Sila masukkan ID dan Password untuk mula.")
+        st.warning("⚠️ Sila masukkan ID dan Password.")
     else:
         st.error("❌ ID atau Password Salah!")
     
     st.sidebar.markdown("---")
     if st.sidebar.button("❓ Lupa Kata Laluan?"):
-        st.sidebar.info("""
-        **Bantuan Pemulihan:**
-        Sila hubungi Admin Jabatan Geomatik PUO.
-        📧 *admin.geomatik@puo.edu.my*
-        """)
+        st.sidebar.info("Sila hubungi Admin Jabatan Geomatik PUO.\n📧 admin.geomatik@puo.edu.my")
     st.stop() 
 
 # --- FUNGSI-FUNGSI MATEMATIK ---
@@ -52,124 +45,96 @@ def kira_bearing_jarak(p1, p2):
 def kira_luas(x, y):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-# --- SIDEBAR TETAPAN PETA & SAIZ TEKS ---
+# --- SIDEBAR TETAPAN ---
 st.sidebar.markdown("---")
-st.sidebar.header("⚙️ Tetapan Peta")
-
-pilihan_peta = st.sidebar.selectbox(
-    "🗺️ Jenis Paparan Peta:",
-    ["Tiada Peta", "OpenStreetMap (Jalan)", "Google Satellite", "Google Hybrid"]
-)
-
+st.sidebar.header("⚙️ Tetapan Paparan")
+pilihan_peta = st.sidebar.selectbox("🗺️ Peta Latar:", ["Tiada Peta", "OpenStreetMap", "Google Satellite"])
 on_off_satelit = pilihan_peta != "Tiada Peta"
-papar_stn = st.sidebar.checkbox("Papar No. Stesen", value=True)
-papar_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", value=True)
-papar_luas_label = st.sidebar.checkbox("Papar Label Luas", value=False)
 
 st.sidebar.markdown("---")
-st.sidebar.header("📏 Saiz Tulisan (Font Size)")
-saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 25, 12)
-saiz_bearing = st.sidebar.slider("Saiz Teks Bearing", 5, 15, 8)
-saiz_jarak = st.sidebar.slider("Saiz Teks Jarak", 5, 15, 7)
-jarak_offset = st.sidebar.slider("Jarak Nombor dari Stesen (m)", 0.5, 5.0, 2.0)
+st.sidebar.header("📏 Saiz Tulisan")
+saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 25, 11)
+saiz_bearing = st.sidebar.slider("Saiz Teks Bearing", 5, 15, 9)
+saiz_jarak = st.sidebar.slider("Saiz Teks Jarak", 5, 15, 8)
+jarak_offset_stn = st.sidebar.slider("Jarak No. Stesen dari Titik (m)", 0.5, 10.0, 3.0)
 
 st.sidebar.markdown("---")
-epsg_code = st.sidebar.text_input("Kod EPSG (Cth Cassini Perak: 4390):", "4390")
-margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin Meter)", 0, 500, 50)
+epsg_code = st.sidebar.text_input("Kod EPSG (Perak: 4390):", "4390")
+margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin)", 0, 500, 50)
 
 # --- HEADER UTAMA ---
-col_logo, col_text = st.columns([1, 4])
-with col_logo:
-    st.image("https://upload.wikimedia.org/wikipedia/ms/thumb/0/05/Logo_PUO.png/200px-Logo_PUO.png", width=120)
-
-with col_text:
-    st.title("POLITEKNIK UNGKU OMAR")
-    st.subheader("Jabatan Kejuruteraan Geomatik - Plotter Poligon")
-
+st.title("POLITEKNIK UNGKU OMAR")
+st.subheader("Jabatan Kejuruteraan Geomatik - Plotter Poligon")
 st.divider()
 
-# --- MUAT NAIK FAIL ---
-uploaded_file = st.file_uploader("📂 Muat naik fail CSV (Pastikan ada kolum STN, E, N)", type=["csv"])
+uploaded_file = st.file_uploader("📂 Muat naik fail CSV (STN, E, N)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     df.columns = [c.upper() for c in df.columns]
 
+    # Pelarasan Stesen 1 (Perak)
     target_n, target_e = 6757.654, 115594.785
-
     if 'STN' in df.columns and 1 in df['STN'].values:
         idx_1 = df[df['STN'] == 1].index[0]
-        shift_e = target_e - df.at[idx_1, 'E']
-        shift_n = target_n - df.at[idx_1, 'N']
-        df['E'] += shift_e
-        df['N'] += shift_n
-        st.success(f"📍 Stesen 1 dilaraskan ke: U={target_n}, B={target_e}")
+        df['E'] += (target_e - df.at[idx_1, 'E'])
+        df['N'] += (target_n - df.at[idx_1, 'N'])
 
     if 'E' in df.columns and 'N' in df.columns:
-        if 'tampilkan_luas' not in st.session_state:
-            st.session_state.tampilkan_luas = False
-
         luas_semasa = kira_luas(df['E'].values, df['N'].values)
-        
-        fig, ax = plt.subplots(figsize=(10, 10))
+        fig, ax = plt.subplots(figsize=(12, 12))
         
         warna_garisan = 'yellow' if on_off_satelit else 'black'
-        warna_teks_brg = 'cyan' if on_off_satelit else 'red'
-        warna_teks_dist = 'white' if on_off_satelit else 'blue'
+        warna_brg = 'cyan' if on_off_satelit else 'darkred'
+        warna_dist = 'white' if on_off_satelit else 'blue'
+        warna_stn = 'yellow' if on_off_satelit else 'black'
 
         points = df[['E', 'N']].values
-        n_points = len(points)
         cx_mean, cy_mean = np.mean(df['E']), np.mean(df['N'])
 
-        # Plot Garisan Traverse
-        for i in range(n_points):
-            p1, p2 = points[i], points[(i + 1) % n_points]
-            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', markersize=4, linewidth=2, zorder=4)
+        # --- LOOP PLOTTING ---
+        for i in range(len(points)):
+            p1 = points[i]
+            p2 = points[(i + 1) % len(points)]
             
-            brg_str, dist, brg_val = kira_bearing_jarak(p1, p2)
+            # Plot Garisan
+            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', markersize=3, linewidth=1.5, zorder=5)
+            
+            # Kira Bearing/Jarak & Kedudukan Tengah
+            brg_str, dist_val, brg_deg = kira_bearing_jarak(p1, p2)
             mid_x, mid_y = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
             
-            if papar_brg_dist:
-                rot = 90 - brg_val
-                if rot < -90: rot += 180
-                if rot > 90: rot -= 180
-                ax.text(mid_x, mid_y, f"{brg_str}", color=warna_teks_brg, fontsize=saiz_bearing, rotation=rot, ha='center', fontweight='bold', va='bottom')
-                ax.text(mid_x, mid_y, f"{dist:.3f}m", color=warna_teks_dist, fontsize=saiz_jarak, rotation=rot, ha='center', fontweight='bold', va='top')
+            # LOGIK ROTASI TEKS (Agar sentiasa boleh dibaca dari bawah/kanan)
+            txt_rot = 90 - brg_deg
+            if txt_rot < -90: txt_rot += 180
+            if txt_rot > 90: txt_rot -= 180
+            
+            # Papar Bearing (Atas Garisan)
+            ax.text(mid_x, mid_y, brg_str, color=warna_brg, fontsize=saiz_bearing, 
+                    rotation=txt_rot, ha='center', va='bottom', fontweight='bold', rotation_mode='anchor')
+            
+            # Papar Jarak (Bawah Garisan)
+            ax.text(mid_x, mid_y, f"{dist_val:.3f}m", color=warna_dist, fontsize=saiz_jarak, 
+                    rotation=txt_rot, ha='center', va='top', fontweight='bold', rotation_mode='anchor')
 
-        # PAPAR NO STESEN DI LUAR TRAVERSE
-        if papar_stn:
-            for _, row in df.iterrows():
-                # Kira vektor dari pusat ke stesen untuk tentukan arah "keluar"
-                dx = row['E'] - cx_mean
-                dy = row['N'] - cy_mean
-                mag = np.sqrt(dx**2 + dy**2)
-                
-                # Tolak teks ke luar sebanyak jarak_offset
-                off_x = (dx / mag) * jarak_offset
-                off_y = (dy / mag) * jarak_offset
-                
-                # Gunakan warna kuning jika satelit, hitam jika tiada peta
-                warna_stn = 'yellow' if on_off_satelit else 'black'
-                
-                ax.text(row['E'] + off_x, row['N'] + off_y, f"{int(row['STN'])}", 
-                        color=warna_stn, fontsize=saiz_stn, fontweight='bold', ha='center', va='center')
+        # --- NO STESEN (DI LUAR) ---
+        for _, row in df.iterrows():
+            dx, dy = row['E'] - cx_mean, row['N'] - cy_mean
+            mag = np.sqrt(dx**2 + dy**2)
+            ax.text(row['E'] + (dx/mag)*jarak_offset_stn, row['N'] + (dy/mag)*jarak_offset_stn, 
+                    str(int(row['STN'])), color=warna_stn, fontsize=saiz_stn, fontweight='bold', ha='center', va='center')
 
-        if st.session_state.tampilkan_luas or papar_luas_label:
-            ax.fill(df['E'], df['N'], alpha=0.2, color='green', zorder=2)
-            ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=14, color='darkgreen', fontweight='bold', ha='center')
-
+        # --- PETA & KEMASAN ---
         if on_off_satelit:
             try:
-                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=cx.providers.Esri.WorldImagery, zoom='auto', zorder=0)
-            except:
-                st.error("Ralat muat peta.")
+                src = cx.providers.Esri.WorldImagery if "Satellite" in pilihan_peta else cx.providers.OpenStreetMap.Mapnik
+                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=src, zoom='auto', zorder=0)
+            except: pass
 
         ax.set_aspect('equal')
         ax.set_xlim(df['E'].min() - margin_meter, df['E'].max() + margin_meter)
         ax.set_ylim(df['N'].min() - margin_meter, df['N'].max() + margin_meter)
+        ax.axis('off') # Buang border kotak graf supaya lebih "clean"
         
         st.pyplot(fig)
-
-        if st.button('📐 Kira & Papar Luas'):
-            st.session_state.tampilkan_luas = True
-            st.rerun()
+        st.write(f"📐 **Luas Poligon:** {luas_semasa:.3f} meter persegi")
