@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="PUO Geomatik - Izzaan", layout="wide")
+st.set_page_config(page_title="PUO Geomatik System", layout="wide")
 
 # --- 2. SISTEM DATABASE KATA LALUAN ---
 if "db_password" not in st.session_state:
@@ -18,12 +18,11 @@ if "logged_in" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
-# --- 3. ANTARAMUKA LOG MASUK & RESET ---
+# --- 3. ANTARAMUKA LOG MASUK & RESET PASSWORD ---
 if not st.session_state.logged_in:
     _, col_mid, _ = st.columns([1, 2, 1])
     with col_mid:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        # Sila pastikan fail logo l.png ada dalam folder yang sama
         if os.path.exists("logo l.png"):
             st.image("logo l.png", width=120)
         
@@ -40,7 +39,6 @@ if not st.session_state.logged_in:
                 else:
                     st.error("❌ Kata laluan tidak padan.")
             st.button("Kembali", on_click=lambda: st.session_state.__setitem__('page', 'login'))
-
         else:
             st.title("Sistem Plotter Geomatik PUO")
             u_id = st.text_input("ID Pengguna")
@@ -52,12 +50,12 @@ if not st.session_state.logged_in:
                 else:
                     st.error("ID atau Kata Laluan salah.")
             st.button("❓ Lupa Kata Laluan?", on_click=lambda: st.session_state.__setitem__('page', 'reset'))
-            
         st.markdown("---")
         st.caption("Pembangun Sistem: Izzaan")
     st.stop()
 
-# --- 4. FUNGSI GEOMATIK (EPSG:4390 -> WGS84) ---
+# --- 4. FUNGSI GEOMATIK (EPSG:4390 ke WGS84) ---
+# Folium memerlukan Lat/Long, jadi kita kena tukar koordinat Cassini
 transformer = Transformer.from_crs("EPSG:4390", "EPSG:4326", always_xy=True)
 
 def kira_bearing_jarak(p1, p2):
@@ -69,22 +67,19 @@ def kira_bearing_jarak(p1, p2):
     return f"{d}°{m:02d}'{s:02.0f}\"", jarak
 
 # --- 5. SIDEBAR ---
-st.sidebar.header("⚙️ Kawalan Paparan")
-p_sat_label = st.sidebar.toggle("Papar Nama Jalan/Bangunan", value=True)
-p_brg_dist = st.sidebar.toggle("Papar Bearing & Jarak", value=True)
-p_stn_label = st.sidebar.toggle("Papar No Stesen", value=True)
-
-st.sidebar.markdown("---")
-st.sidebar.header("📏 Saiz Tulisan")
-s_stn = st.sidebar.slider("Saiz No Stesen", 8, 24, 14)
-s_data = st.sidebar.slider("Saiz Bearing/Jarak", 8, 20, 10)
+st.success(f"👋 Selamat Datang, **Izzaan**!")
+st.sidebar.header("⚙️ Kawalan Visual")
+p_sat_label = st.sidebar.toggle("On/Off Label Google Maps", value=True)
+p_brg_dist = st.sidebar.toggle("On/Off Bearing & Jarak", value=True)
+p_stn_label = st.sidebar.toggle("On/Off No Stesen", value=True)
+s_font = st.sidebar.slider("Saiz Tulisan", 8, 20, 10)
 
 if st.sidebar.button("🚪 Log Keluar"):
     st.session_state.logged_in = False
     st.rerun()
 
-# --- 6. PLOTTER UTAMA ---
-st.title("📍 Plotter Poligon Cassini (EPSG:4390)")
+# --- 6. PLOTTER ---
+st.title("📍 Plotter Interaktif Cassini (EPSG:4390)")
 uploaded_file = st.file_uploader("📂 Muat naik fail CSV (STN, E, N)", type=["csv"])
 
 if uploaded_file is not None:
@@ -92,76 +87,66 @@ if uploaded_file is not None:
     df.columns = [c.upper().strip() for c in df.columns]
 
     if 'E' in df.columns and 'N' in df.columns:
-        # Penukaran Koordinat untuk Folium
+        # 1. Tukar koordinat ke Lat/Long untuk peta
         coords_wgs = [transformer.transform(e, n) for e, n in zip(df['E'], df['N'])]
         df['lon'] = [c[0] for c in coords_wgs]
         df['lat'] = [c[1] for c in coords_wgs]
         
-        # Inisialisasi Peta Folium
+        # 2. Inisialisasi Peta Folium
         m = folium.Map(control_scale=True)
 
-        # GOOGLE SATELLITE LAYER (Hybrid atau Satelit Sahaja)
-        tile_lyr = 'y' if p_sat_label else 's'
-        google_url = f'https://mt1.google.com/vt/lyrs={tile_lyr}&x={{x}}&y={{y}}&z={{z}}'
-        folium.TileLayer(tiles=google_url, attr='Google', name='Google Satellite').add_to(m)
+        # 3. Masukkan Google Satellite (Boleh Zoom)
+        # lyrs=s (Satelit bersih), lyrs=y (Satelit + Jalan)
+        tile_type = 'y' if p_sat_label else 's'
+        google_url = f'https://mt1.google.com/vt/lyrs={tile_type}&x={{x}}&y={{y}}&z={{z}}'
+        folium.TileLayer(tiles=google_url, attr='Google Satellite', name='Google').add_to(m)
 
-        # Plot Poligon (Garis Cyan)
+        # 4. Plot Poligon Traverse (Cyan)
         poly_points = [[row['lat'], row['lon']] for _, row in df.iterrows()]
         folium.Polygon(locations=poly_points, color="cyan", weight=3, fill=False).add_to(m)
 
-        # 1. Plot Bearing & Jarak (Center)
+        # 5. Plot Bearing & Jarak (Gaya Gambar No. 2)
         if p_brg_dist:
             for i in range(len(df)):
                 p1, p2 = df.iloc[i], df.iloc[(i+1)%len(df)]
-                brg, dst = kira_bearing_jarak([p1['E'], p1['N']], [p2['E'], p2['N']])
+                brg_str, dst_val = kira_bearing_jarak([p1['E'], p1['N']], [p2['E'], p2['N']])
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
                 
+                # Label gaya kotak putih teks merah
                 folium.map.Marker(
                     [mid_lat, mid_lon],
-                    icon=folium.DivIcon(html=f"""<div style="font-family: Arial; color: black; background: white; 
-                    padding: 3px; border-radius: 4px; font-size: {s_data}pt; font-weight: bold; border: 1px solid red;
-                    text-align: center; width: 90px; pointer-events: none;">{brg}<br>{dst:.2f}m</div>""")
+                    icon=folium.DivIcon(html=f"""<div style="font-family: Arial; color: red; background: white; 
+                    padding: 2px 5px; border-radius: 3px; font-size: {s_font-2}pt; font-weight: bold; 
+                    text-align: center; width: 80px; border: 1px solid gray;">{brg_str}<br>{dst_val:.2f}m</div>""")
                 ).add_to(m)
 
-        # 2. Plot Bucu (Clickable) & No Stesen (Luar)
-        centroid_lat, centroid_lon = df['lat'].mean(), df['lon'].mean()
+        # 6. Plot No Stesen (Gaya Gambar No. 2)
+        cx, cy = df['lon'].mean(), df['lat'].mean()
         for _, row in df.iterrows():
-            # Info bucu bila diklik
-            pop_txt = f"<b>Stesen:</b> {int(row['STN'])}<br><b>E:</b> {row['E']:.3f}<br><b>N:</b> {row['N']:.3f}"
+            # Marker Bucu Merah (Boleh klik untuk info)
             folium.CircleMarker(
                 location=[row['lat'], row['lon']],
-                radius=6, color="red", fill=True, fill_color="red",
-                popup=folium.Popup(pop_txt, max_width=200)
+                radius=4, color="red", fill=True, fill_color="red",
+                popup=f"Stn: {int(row['STN'])}<br>E: {row['E']:.3f}<br>N: {row['N']:.3f}"
             ).add_to(m)
 
-            # Label No Stesen (Offset automatik ke luar poligon)
+            # Label No Stesen Kuning (Tolak ke luar)
             if p_stn_label:
-                off_lat, off_lon = (row['lat'] - centroid_lat) * 0.2, (row['lon'] - centroid_lon) * 0.2
+                off_lat, off_lon = (row['lat'] - cy) * 0.15, (row['lon'] - cx) * 0.15
                 folium.map.Marker(
                     [row['lat'] + off_lat, row['lon'] + off_lon],
-                    icon=folium.DivIcon(html=f"""<div style="font-size: {s_stn}pt; color: yellow; font-weight: bold; 
-                    text-shadow: 2px 2px 4px black; pointer-events: none; width: 30px;">{int(row['STN'])}</div>""")
+                    icon=folium.DivIcon(html=f"""<div style="font-size: {s_font}pt; color: yellow; font-weight: bold; 
+                    text-shadow: 2px 2px 4px black; width: 30px;">{int(row['STN'])}</div>""")
                 ).add_to(m)
 
-        # AUTO ZOOM KE POLIGON
+        # 7. AUTO-ZOOM (Supaya tidak zoom out sangat)
         m.fit_bounds(poly_points)
 
-        # Paparkan Peta Interaktif
+        # 8. Paparkan Peta
         folium_static(m, width=1000, height=600)
-
-        # --- INFO PANEL ---
-        st.divider()
-        c1, c2 = st.columns([2, 1])
-        with c1:
-            st.subheader("📊 Jadual Koordinat")
+        
+        with st.expander("📊 Jadual Data Koordinat"):
             st.dataframe(df[['STN', 'E', 'N']], use_container_width=True)
-        with c2:
-            st.subheader("👨‍🏫 Maklumat")
-            st.write(f"Surveyor: **Izzaan**")
-            # Kira Luas secara kasar
-            x, y = df['E'].values, df['N'].values
-            luas = 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-            st.metric("Luas Keseluruhan", f"{luas:.2f} m²")
-            
-            geojson = {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [df[['lon', 'lat']].values.tolist()]}}
-            st.download_button("🚀 Eksport JSON", data=json.dumps(geojson), file_name="izzaan_geomatik.json")
+
+st.markdown("---")
+st.caption("Pembangun Sistem: Izzaan | Geomatics PUO")
