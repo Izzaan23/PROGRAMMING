@@ -29,16 +29,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER LOCKED (Sentiasa Ada di Semua Page) ---
-st.markdown(f"""
-    <div class="sticky-header">
-        <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
-            <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ Visualisasi Poligon</h1>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
-
 # --- 2. SISTEM DATABASE KATA LALUAN ---
 if "db_password" not in st.session_state:
     st.session_state.db_password = "admin123"
@@ -49,6 +39,16 @@ if "page" not in st.session_state:
 
 # --- 3. ANTARAMUKA LOG MASUK ---
 if not st.session_state.logged_in:
+    # Header khusus untuk muka depan (Log Masuk)
+    st.markdown(f"""
+        <div class="sticky-header">
+            <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
+                <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ SISTEM PENGURUSAN MAKLUMAT TANAH</h1>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     _, col_mid, _ = st.columns([0.1, 4, 0.1]) 
     with col_mid:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -79,6 +79,16 @@ if not st.session_state.logged_in:
         st.caption("Pembangun Sistem: Izzaan")
     st.stop()
 
+# --- HEADER LOCKED (Untuk Halaman Selepas Log Masuk) ---
+st.markdown(f"""
+    <div class="sticky-header">
+        <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
+            <h1 style="color: white; margin: 0; font-size: 32px;">📐 Visualisasi Poligon</h1>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
 # --- 4. FUNGSI GEOMATIK ---
 transformer = Transformer.from_crs("EPSG:4390", "EPSG:4326", always_xy=True)
 
@@ -104,6 +114,7 @@ def kira_luas(df):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 # --- 5. SIDEBAR (DASHBOARD TETAPAN) ---
+st.sidebar.markdown("### hi, izzaan! 👋") # Tambahan ucapan
 st.sidebar.title("🏠 Dashboard Tetapan")
 st.sidebar.markdown("---")
 p_point = st.sidebar.checkbox("Papar Point Stesen", value=True)
