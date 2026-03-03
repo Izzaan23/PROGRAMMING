@@ -7,6 +7,17 @@ from folium.plugins import Fullscreen
 from pyproj import Transformer
 import json
 import os
+import base64 # Diperlukan untuk membaca fail lokal
+
+# Fungsi untuk menukar fail imej lokal kepada format yang boleh dibaca HTML
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return ""
+
+img_base64 = get_base64_image("logo.png")
+logo_html = f"data:image/png;base64,{img_base64}" if img_base64 else ""
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Visualisasi Poligon", layout="wide")
@@ -43,7 +54,7 @@ if not st.session_state.logged_in:
     st.markdown(f"""
         <div class="sticky-header">
             <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
+                <img src="{logo_html}" width="150">
                 <h1 style="color: white; margin: 0; font-size: 32px;">🏛️ SISTEM PENGURUSAN MAKLUMAT TANAH</h1>
             </div>
         </div>
@@ -83,7 +94,7 @@ if not st.session_state.logged_in:
 st.markdown(f"""
     <div class="sticky-header">
         <div style="display: flex; align-items: center; gap: 20px; padding-left: 20px;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_Politeknik_Malaysia.png" width="150">
+            <img src="{logo_html}" width="150">
             <h1 style="color: white; margin: 0; font-size: 32px;">📐 Visualisasi Poligon</h1>
         </div>
     </div>
