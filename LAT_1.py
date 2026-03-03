@@ -159,14 +159,14 @@ if uploaded_file is not None:
             popup=folium.Popup(info_lot_html, max_width=250)
         ).add_to(m)
 
-        # Label Luas Static di tengah
+        # Label Luas Static di tengah (Tanpa Box)
         if p_luas:
             folium.map.Marker(
                 [df['lat'].mean(), df['lon'].mean()],
                 icon=folium.DivIcon(html=f"""
-                    <div style="background-color: white; border: 2px solid green; padding: 5px; border-radius: 5px; text-align: center; width: 150px; margin-left: -75px;">
-                        <b style="font-size: {s_luas-4}pt; color: green;">LUAS</b><br>
-                        <b style="font-size: {s_luas}pt;">{luas_m2:.2f} m²</b>
+                    <div style="text-align: center; width: 150px; margin-left: -75px; pointer-events: none;">
+                        <b style="font-size: {s_luas-4}pt; color: white; text-shadow: 2px 2px 4px black;">LUAS</b><br>
+                        <b style="font-size: {s_luas}pt; color: #00FF00; text-shadow: 2px 2px 4px black;">{luas_m2:.2f} m²</b>
                     </div>""")
             ).add_to(m)
 
@@ -174,7 +174,6 @@ if uploaded_file is not None:
             p1_row = df.iloc[i]
             p2_row = df.iloc[(i+1)%len(df)]
             
-            # Popup Coordinate semasa tekan stesen
             coord_html = f"<b>STN {int(p1_row['STN'])}</b><br>E: {p1_row['E']:.3f}<br>N: {p1_row['N']:.3f}"
             
             if p_point:
@@ -191,21 +190,22 @@ if uploaded_file is not None:
                 brg_txt, dst_val, angle, flipped = kira_brg_dst([p1_row['E'], p1_row['N']], [p2_row['E'], p2_row['N']])
                 mid_lat, mid_lon = (p1_row['lat'] + p2_row['lat'])/2, (p1_row['lon'] + p2_row['lon'])/2
                 
-                # Menguruskan kedudukan Bearing (Atas) dan Distance (Bawah)
+                # Gunakan column untuk bearing atas, distance bawah
+                # Jika flipped, kita terbalikkan order supaya bearing sentiasa "di atas" garisan secara visual
                 flex_dir = "column-reverse" if flipped else "column"
                 
                 folium.map.Marker(
                     [mid_lat, mid_lon],
                     icon=folium.DivIcon(html=f"""
-                        <div style="transform: rotate({-angle}deg); display: flex; flex-direction: {flex_dir}; align-items: center; justify-content: center; width: 140px; margin-left: -70px; pointer-events: none; gap: 4px;">
-                            <div style="font-size: {s_brg}pt; color: red; font-weight: bold; text-shadow: 1px 1px 2px white, -1px -1px 2px white;">{brg_txt}</div>
-                            <div style="font-size: {s_brg-1}pt; color: black; font-weight: bold; text-shadow: 1px 1px 2px white, -1px -1px 2px white;">{dst_val:.2f}m</div>
+                        <div style="transform: rotate({-angle}deg); display: flex; flex-direction: {flex_dir}; align-items: center; justify-content: center; width: 140px; margin-left: -70px; pointer-events: none;">
+                            <div style="font-size: {s_brg}pt; color: #FF0000; font-weight: bold; text-shadow: 1px 1px 2px black;">{brg_txt}</div>
+                            <div style="font-size: {s_brg-1}pt; color: #FFFFFF; font-weight: bold; text-shadow: 1px 1px 2px black;">{dst_val:.2f}m</div>
                         </div>""")
                 ).add_to(m)
 
         folium_static(m, width=1100, height=600)
 
-        # --- JADUAL RINGKASAN DATA (INFO FAIL & LUAS) ---
+        # --- JADUAL RINGKASAN DATA ---
         st.subheader("📊 Ringkasan Maklumat Lot")
         summary_data = {
             "Perkara": ["Nama Fail", "Luas (m²)", "Luas (Ekar)", "Perimeter (m)", "Bilangan Garis"],
@@ -213,13 +213,12 @@ if uploaded_file is not None:
         }
         st.table(pd.DataFrame(summary_data))
 
-        # --- JADUAL KOORDINAT TERPERINCI (TRAVERSE) ---
+        # --- JADUAL KOORDINAT TERPERINCI ---
         st.subheader("📋 Jadual Koordinat Traverse")
         traverse_df = df[['STN', 'E', 'N']].copy()
         traverse_df['STN'] = traverse_df['STN'].astype(int)
         traverse_df['E'] = traverse_df['E'].map('{:,.3f}'.format)
         traverse_df['N'] = traverse_df['N'].map('{:,.3f}'.format)
-        
         st.dataframe(traverse_df, use_container_width=True, hide_index=True)
 
 st.markdown("---")
