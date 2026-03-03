@@ -78,7 +78,7 @@ margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin Meter)", 0, 100, 5)
 # --- HEADER UTAMA ---
 col_logo, col_text = st.columns([1, 4])
 with col_logo:
-    st.image("https://upload.wikimedia.org/wikipedia/ms/thumb/0/05/Logo_PUO.png/200px-Logo_PUO.png", width=120)
+    st.image("https://upload.wikimedia.org/wikipedia/ms/thumb/0/05/Logo_PUO.png/200px-Logo l.png", width=120)
 
 with col_text:
     st.title("POLITEKNIK UNGKU OMAR")
@@ -144,16 +144,20 @@ if uploaded_file is not None:
             ax.fill(df['E'], df['N'], alpha=0.3, color='green', zorder=2)
             ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=12, color='darkgreen', fontweight='bold', ha='center', bbox=dict(facecolor='white', alpha=0.8))
 
-        if on_off_satelit:
+       if on_off_satelit:
             try:
-                # Pilih source berdasarkan pilihan_peta
-                if "Satellite" in pilihan_peta:
-                    source_img = cx.providers.Esri.WorldImagery
-                else:
-                    source_img = cx.providers.OpenStreetMap.Mapnik
-                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=source_img, zorder=0)
-            except:
-                st.error("Gagal muat peta latar. Sila semak Kod EPSG.")
+                # Kita gunakan Esri kerana ia lebih stabil untuk koordinat Cassini
+                source_peta = cx.providers.Esri.WorldImagery
+                
+                # Tambah basemap dengan zoom='auto' untuk elakkan "Map data not available"
+                cx.add_basemap(ax, 
+                               crs=f"EPSG:{epsg_code}", 
+                               source=source_peta, 
+                               zoom='auto', 
+                               zorder=0)
+            except Exception as e:
+                st.error(f"⚠️ Ralat Peta: {e}")
+                st.info("Tips: Cuba besarkan 'Margin Meter' di sidebar kepada 50 atau lebih.")
 
         ax.set_aspect('equal')
         st.pyplot(fig)
@@ -161,3 +165,4 @@ if uploaded_file is not None:
         if st.button('📐 Kira & Papar Luas'):
             st.session_state.tampilkan_luas = True
             st.rerun()
+
