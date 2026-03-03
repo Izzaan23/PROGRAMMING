@@ -27,7 +27,7 @@ else:
     if st.sidebar.button("❓ Lupa Kata Laluan?"):
         st.sidebar.info("""
         **Bantuan Pemulihan:**
-        Sila hubungi Admin Jabatan Geomatik PUO atau pensyarah anda.
+        Sila hubungi Admin Jabatan Geomatik PUO.
         📧 *admin.geomatik@puo.edu.my*
         """)
     st.stop() 
@@ -68,10 +68,10 @@ papar_luas_label = st.sidebar.checkbox("Papar Label Luas", value=False)
 
 st.sidebar.markdown("---")
 st.sidebar.header("📏 Saiz Tulisan (Font Size)")
-# Slider baru untuk kawalan saiz teks
-saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 20, 10)
+saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 25, 12)
 saiz_bearing = st.sidebar.slider("Saiz Teks Bearing", 5, 15, 8)
 saiz_jarak = st.sidebar.slider("Saiz Teks Jarak", 5, 15, 7)
+jarak_offset = st.sidebar.slider("Jarak Nombor dari Stesen (m)", 0.5, 5.0, 2.0)
 
 st.sidebar.markdown("---")
 epsg_code = st.sidebar.text_input("Kod EPSG (Cth Cassini Perak: 4390):", "4390")
@@ -95,7 +95,6 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     df.columns = [c.upper() for c in df.columns]
 
-    # Koordinat Target Stesen 1 (Perak)
     target_n, target_e = 6757.654, 115594.785
 
     if 'STN' in df.columns and 1 in df['STN'].values:
@@ -106,15 +105,12 @@ if uploaded_file is not None:
         df['N'] += shift_n
         st.success(f"📍 Stesen 1 dilaraskan ke: U={target_n}, B={target_e}")
 
-    st.dataframe(df.set_index('STN'), use_container_width=True)
-
     if 'E' in df.columns and 'N' in df.columns:
         if 'tampilkan_luas' not in st.session_state:
             st.session_state.tampilkan_luas = False
 
         luas_semasa = kira_luas(df['E'].values, df['N'].values)
         
-        # --- PLOTTING MATPLOTLIB ---
         fig, ax = plt.subplots(figsize=(10, 10))
         
         warna_garisan = 'yellow' if on_off_satelit else 'black'
@@ -125,9 +121,10 @@ if uploaded_file is not None:
         n_points = len(points)
         cx_mean, cy_mean = np.mean(df['E']), np.mean(df['N'])
 
+        # Plot Garisan Traverse
         for i in range(n_points):
             p1, p2 = points[i], points[(i + 1) % n_points]
-            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', linewidth=2, zorder=4)
+            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', markersize=4, linewidth=2, zorder=4)
             
             brg_str, dist, brg_val = kira_bearing_jarak(p1, p2)
             mid_x, mid_y = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
@@ -136,32 +133,36 @@ if uploaded_file is not None:
                 rot = 90 - brg_val
                 if rot < -90: rot += 180
                 if rot > 90: rot -= 180
-                
-                # Papar Bearing (Menggunakan saiz dari slider)
-                ax.text(mid_x, mid_y, f"{brg_str}", color=warna_teks_brg, 
-                        fontsize=saiz_bearing, rotation=rot, ha='center', fontweight='bold', va='bottom')
-                
-                # Papar Jarak (Menggunakan saiz dari slider)
-                ax.text(mid_x, mid_y, f"{dist:.3f}m", color=warna_teks_dist, 
-                        fontsize=saiz_jarak, rotation=rot, ha='center', fontweight='bold', va='top')
+                ax.text(mid_x, mid_y, f"{brg_str}", color=warna_teks_brg, fontsize=saiz_bearing, rotation=rot, ha='center', fontweight='bold', va='bottom')
+                ax.text(mid_x, mid_y, f"{dist:.3f}m", color=warna_teks_dist, fontsize=saiz_jarak, rotation=rot, ha='center', fontweight='bold', va='top')
 
+        # PAPAR NO STESEN DI LUAR TRAVERSE
         if papar_stn:
             for _, row in df.iterrows():
-                # Papar No Stesen (Menggunakan saiz dari slider)
-                ax.text(row['E'], row['N'], f" {int(row['STN'])}", color='black', 
-                        fontsize=saiz_stn, fontweight='bold', bbox=dict(facecolor='yellow', alpha=0.7, boxstyle='round'))
+                # Kira vektor dari pusat ke stesen untuk tentukan arah "keluar"
+                dx = row['E'] - cx_mean
+                dy = row['N'] - cy_mean
+                mag = np.sqrt(dx**2 + dy**2)
+                
+                # Tolak teks ke luar sebanyak jarak_offset
+                off_x = (dx / mag) * jarak_offset
+                off_y = (dy / mag) * jarak_offset
+                
+                # Gunakan warna kuning jika satelit, hitam jika tiada peta
+                warna_stn = 'yellow' if on_off_satelit else 'black'
+                
+                ax.text(row['E'] + off_x, row['N'] + off_y, f"{int(row['STN'])}", 
+                        color=warna_stn, fontsize=saiz_stn, fontweight='bold', ha='center', va='center')
 
         if st.session_state.tampilkan_luas or papar_luas_label:
-            ax.fill(df['E'], df['N'], alpha=0.3, color='green', zorder=2)
-            ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=14, 
-                    color='darkgreen', fontweight='bold', ha='center', bbox=dict(facecolor='white', alpha=0.8))
+            ax.fill(df['E'], df['N'], alpha=0.2, color='green', zorder=2)
+            ax.text(cx_mean, cy_mean, f"LUAS\n{luas_semasa:.3f} m²", fontsize=14, color='darkgreen', fontweight='bold', ha='center')
 
         if on_off_satelit:
             try:
-                source_peta = cx.providers.Esri.WorldImagery
-                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=source_peta, zoom='auto', zorder=0)
-            except Exception as e:
-                st.error(f"⚠️ Ralat Peta: {e}")
+                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=cx.providers.Esri.WorldImagery, zoom='auto', zorder=0)
+            except:
+                st.error("Ralat muat peta.")
 
         ax.set_aspect('equal')
         ax.set_xlim(df['E'].min() - margin_meter, df['E'].max() + margin_meter)
