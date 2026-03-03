@@ -190,13 +190,16 @@ if uploaded_file is not None:
             if p_lbl:
                 brg_txt, dst_val, angle, flipped = kira_brg_dst([p1_row['E'], p1_row['N']], [p2_row['E'], p2_row['N']])
                 mid_lat, mid_lon = (p1_row['lat'] + p2_row['lat'])/2, (p1_row['lon'] + p2_row['lon'])/2
+                
+                # Menguruskan kedudukan Bearing (Atas) dan Distance (Bawah)
                 flex_dir = "column-reverse" if flipped else "column"
+                
                 folium.map.Marker(
                     [mid_lat, mid_lon],
                     icon=folium.DivIcon(html=f"""
-                        <div style="transform: rotate({-angle}deg); display: flex; flex-direction: {flex_dir}; align-items: center; justify-content: center; width: 140px; margin-left: -70px; pointer-events: none; background: rgba(255,255,255,0.7); border: 1px solid red; border-radius: 3px;">
-                            <div style="font-size: {s_brg}pt; color: red; font-weight: bold;">{brg_txt}</div>
-                            <div style="font-size: {s_brg-1}pt; color: black; font-weight: bold;">{dst_val:.2f}m</div>
+                        <div style="transform: rotate({-angle}deg); display: flex; flex-direction: {flex_dir}; align-items: center; justify-content: center; width: 140px; margin-left: -70px; pointer-events: none; gap: 4px;">
+                            <div style="font-size: {s_brg}pt; color: red; font-weight: bold; text-shadow: 1px 1px 2px white, -1px -1px 2px white;">{brg_txt}</div>
+                            <div style="font-size: {s_brg-1}pt; color: black; font-weight: bold; text-shadow: 1px 1px 2px white, -1px -1px 2px white;">{dst_val:.2f}m</div>
                         </div>""")
                 ).add_to(m)
 
@@ -212,7 +215,6 @@ if uploaded_file is not None:
 
         # --- JADUAL KOORDINAT TERPERINCI (TRAVERSE) ---
         st.subheader("📋 Jadual Koordinat Traverse")
-        # Menyusun data untuk paparan yang kemas
         traverse_df = df[['STN', 'E', 'N']].copy()
         traverse_df['STN'] = traverse_df['STN'].astype(int)
         traverse_df['E'] = traverse_df['E'].map('{:,.3f}'.format)
