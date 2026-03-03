@@ -21,11 +21,19 @@ if "page" not in st.session_state:
 
 # --- 3. ANTARAMUKA LOG MASUK ---
 if not st.session_state.logged_in:
-    _, col_mid, _ = st.columns([1, 2, 1])
+    _, col_mid, _ = st.columns([0.5, 3, 0.5]) # Lebarkan sikit col_mid untuk muat satu baris
     with col_mid:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        if os.path.exists("logo l.png"):
-            st.image("logo l.png", width=120)
+        
+        # --- BAHAGIAN LOGO & TITLE SEJAJAR ---
+        head_l, head_r = st.columns([1, 4])
+        with head_l:
+            if os.path.exists("logo l.png"):
+                st.image("logo l.png", width=120)
+        with head_r:
+            st.markdown("<h2 style='margin-top: 30px;'>SISTEM PENGURUSAN MAKLUMAT TANAH</h2>", unsafe_allow_html=True)
+        
+        st.markdown("---")
         
         if st.session_state.page == "reset":
             st.subheader("🔑 Set Semula Kata Laluan")
@@ -41,7 +49,6 @@ if not st.session_state.logged_in:
                 st.session_state.page = "login"
                 st.rerun()
         else:
-            st.title("Sistem Plotter Geomatik PUO")
             u_id = st.text_input("ID Pengguna")
             u_pass = st.text_input("Kata Laluan", type="password")
             if st.button("🔓 Log Masuk", use_container_width=True):
@@ -51,6 +58,7 @@ if not st.session_state.logged_in:
                 else:
                     st.error("ID atau Kata Laluan salah.")
             st.button("❓ Lupa Kata Laluan?", on_click=lambda: st.session_state.__setitem__('page', 'reset'))
+        
         st.markdown("---")
         st.caption("Pembangun Sistem: Izzaan")
     st.stop()
@@ -160,7 +168,6 @@ if uploaded_file is not None:
         m.fit_bounds(poly_pts)
         folium_static(m, width=1100, height=600)
 
-        # Bahagian Jadual & Muat Turun dikekalkan di bawah peta
         st.divider()
         c1, c2 = st.columns(2)
         with c1:
