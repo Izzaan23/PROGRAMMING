@@ -19,10 +19,6 @@ else:
         st.warning("⚠️ Sila masukkan ID dan Password.")
     else:
         st.error("❌ ID atau Password Salah!")
-    
-    st.sidebar.markdown("---")
-    if st.sidebar.button("❓ Lupa Kata Laluan?"):
-        st.sidebar.info("Hubungi Admin Geomatik PUO.\n📧 admin.geomatik@puo.edu.my")
     st.stop() 
 
 # --- 3. FUNGSI MATEMATIK ---
@@ -44,24 +40,30 @@ def kira_bearing_jarak(p1, p2):
 def kira_luas(x, y):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-# --- 4. SIDEBAR TETAPAN ---
+# --- 4. SIDEBAR TETAPAN (LABEL ON/OFF DIKEMBALIKAN) ---
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Tetapan Paparan")
-pilihan_peta = st.sidebar.selectbox(
-    "🗺️ Peta Latar:", 
-    ["Tiada Peta", "OpenStreetMap", "Esri World Imagery", "Google Satellite", "Google Hybrid"]
-)
-on_off_satelit = pilihan_peta != "Tiada Peta"
+
+# Label On/Off yang anda minta
+papar_satelit = st.sidebar.checkbox("Boleh on off satelit imej", value=True)
+papar_brg_dist = st.sidebar.checkbox("Boleh on off bering dan jarak", value=True)
+papar_stn_label = st.sidebar.checkbox("Boleh on off label stesen", value=True)
+
+pilihan_peta = "Google Satellite" # Default jika satelit ON
+if papar_satelit:
+    pilihan_peta = st.sidebar.selectbox("Pilih Jenis Satelit:", ["Google Satellite", "Google Hybrid", "Esri World Imagery"])
+else:
+    pilihan_peta = st.sidebar.selectbox("Pilih Peta Jalan:", ["Tiada Peta", "OpenStreetMap"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("📏 Saiz Tulisan")
-saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 25, 11)
+saiz_stn = st.sidebar.slider("Saiz No. Stesen", 5, 25, 12)
 saiz_bearing = st.sidebar.slider("Saiz Teks Bearing", 5, 15, 9)
 saiz_jarak = st.sidebar.slider("Saiz Teks Jarak", 5, 15, 8)
-jarak_offset_stn = st.sidebar.slider("Jarak No. Stesen (m)", 0.5, 10.0, 4.0)
+jarak_offset_stn = st.sidebar.slider("Jarak No. Stesen (m)", 0.5, 15.0, 5.0)
 
 epsg_code = st.sidebar.text_input("Kod EPSG (Perak: 4390):", "4390")
-margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin)", 10, 500, 100) # Minimum 10 untuk elak ralat data
+margin_meter = st.sidebar.slider("🔍 Zum Keluar (Margin)", 10, 1000, 150)
 
 # --- 5. HEADER UTAMA ---
 st.title("POLITEKNIK UNGKU OMAR")
@@ -83,9 +85,10 @@ if uploaded_file is not None:
 
     if 'E' in df.columns and 'N' in df.columns:
         luas_semasa = kira_luas(df['E'].values, df['N'].values)
-        fig, ax = plt.subplots(figsize=(12, 12))
         
-        is_dark = any(x in pilihan_peta for x in ["Satellite", "Imagery", "Hybrid"])
+        # Plotting
+        fig, ax = plt.subplots(figsize=(12, 12))
+        is_dark = papar_satelit
         warna_garisan = 'yellow' if is_dark else 'black'
         warna_brg = 'cyan' if is_dark else 'darkred'
         warna_dist = 'white' if is_dark else 'blue'
@@ -93,33 +96,31 @@ if uploaded_file is not None:
 
         points = df[['E', 'N']].values
         cx_mean, cy_mean = np.mean(df['E']), np.mean(df['N'])
+        total_perimeter = 0
 
         for i in range(len(points)):
             p1, p2 = points[i], points[(i + 1) % len(points)]
-            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', markersize=3, linewidth=1.5, zorder=5)
+            ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=warna_garisan, marker='o', markersize=4, linewidth=2, zorder=5)
             
             brg_str, dist_val, brg_deg = kira_bearing_jarak(p1, p2)
+            total_perimeter += dist_val
             mid_x, mid_y = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
             
-            txt_rot = 90 - brg_deg
-            if txt_rot < -90: txt_rot += 180
-            if txt_rot > 90: txt_rot -= 180
-            
-            # Bearing (Atas) & Jarak (Bawah) - Seragam di tengah
-            ax.text(mid_x, mid_y, brg_str, color=warna_brg, fontsize=saiz_bearing, 
-                    rotation=txt_rot, ha='center', va='bottom', fontweight='bold', rotation_mode='anchor')
-            ax.text(mid_x, mid_y, f"{dist_val:.3f}m", color=warna_dist, fontsize=saiz_jarak, 
-                    rotation=txt_rot, ha='center', va='top', fontweight='bold', rotation_mode='anchor')
+            if papar_brg_dist:
+                txt_rot = 90 - brg_deg
+                if txt_rot < -90: txt_rot += 180
+                if txt_rot > 90: txt_rot -= 180
+                ax.text(mid_x, mid_y, brg_str, color=warna_brg, fontsize=saiz_bearing, rotation=txt_rot, ha='center', va='bottom', fontweight='bold', rotation_mode='anchor')
+                ax.text(mid_x, mid_y, f"{dist_val:.3f}m", color=warna_dist, fontsize=saiz_jarak, rotation=txt_rot, ha='center', va='top', fontweight='bold', rotation_mode='anchor')
 
-        # No Stesen di Luar
-        for _, row in df.iterrows():
-            dx, dy = row['E'] - cx_mean, row['N'] - cy_mean
-            mag = np.sqrt(dx**2 + dy**2)
-            ax.text(row['E'] + (dx/mag)*jarak_offset_stn, row['N'] + (dy/mag)*jarak_offset_stn, 
-                    str(int(row['STN'])), color=warna_stn, fontsize=saiz_stn, fontweight='bold', ha='center', va='center')
+        if papar_stn_label:
+            for _, row in df.iterrows():
+                dx, dy = row['E'] - cx_mean, row['N'] - cy_mean
+                mag = np.sqrt(dx**2 + dy**2)
+                ax.text(row['E'] + (dx/mag)*jarak_offset_stn, row['N'] + (dy/mag)*jarak_offset_stn, str(int(row['STN'])), color=warna_stn, fontsize=saiz_stn, fontweight='bold', ha='center', va='center')
 
-        # --- LOGIK SATELIT STABIL ---
-        if on_off_satelit:
+        # Logik Satelit
+        if papar_satelit or pilihan_peta != "Tiada Peta":
             try:
                 if "Google Satellite" in pilihan_peta:
                     url = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
@@ -129,16 +130,31 @@ if uploaded_file is not None:
                     url = cx.providers.Esri.WorldImagery
                 else:
                     url = cx.providers.OpenStreetMap.Mapnik
-                
-                # Kunci Zoom=18 untuk elak ralat "Map data not available"
-                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=url, zoom=18, zorder=0)
+                cx.add_basemap(ax, crs=f"EPSG:{epsg_code}", source=url, zoom=19, zorder=0)
             except:
-                st.sidebar.warning("Cuba besarkan Margin Meter jika peta tidak keluar.")
+                st.sidebar.warning("Sila besarkan Margin Meter untuk memuatkan imej satelit.")
 
         ax.set_aspect('equal')
         ax.set_xlim(df['E'].min() - margin_meter, df['E'].max() + margin_meter)
         ax.set_ylim(df['N'].min() - margin_meter, df['N'].max() + margin_meter)
-        ax.axis('off') 
-        
+        ax.axis('off')
         st.pyplot(fig)
-        st.success(f"📐 Luas Poligon: {luas_semasa:.3f} m²")
+
+        # --- 6. BAHAGIAN INFO STESEN & POLIGON (BARU) ---
+        st.divider()
+        st.subheader("📊 Maklumat Analisis Geomatik")
+        
+        col_info1, col_info2 = st.columns(2)
+        
+        with col_info1:
+            st.info("🏠 **Info Poligon**")
+            st.write(f"- **Luas Keseluruhan:** {luas_semasa:.3f} m²")
+            st.write(f"- **Luas (Ekar):** {luas_semasa * 0.000247105:.4f} ekar")
+            st.write(f"- **Perimeter:** {total_perimeter:.3f} meter")
+            st.write(f"- **Kod EPSG Gunapakai:** {epsg_code}")
+
+        with col_info2:
+            st.info("📍 **Info Stesen (Koordinat Terlaras)**")
+            st.dataframe(df[['STN', 'E', 'N']].set_index('STN'), use_container_width=True)
+
+        st.success("Nota: Stesen 1 telah dilaraskan secara automatik ke koordinat Cassini Perak.")
