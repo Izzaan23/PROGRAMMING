@@ -74,12 +74,9 @@ if not st.session_state.logged_in:
             u_id = st.text_input("ID Pengguna")
             u_pass = st.text_input("Kata Laluan", type="password")
             
-            # --- PERUBAHAN DI SINI: Senarai 3 ID berlainan ---
-            senarai_id_dibenarkan = ["11", "22", "33"]
-            
+            # --- PERUBAHAN DI SINI: Membenarkan ID 11, 12, dan 13 ---
             if st.button("🔓 Log Masuk", use_container_width=True):
-                # Semak jika ID ada dalam senarai DAN kata laluan adalah betul
-                if u_id in senarai_id_dibenarkan and u_pass == current_db_pass:
+                if u_id in ["11", "12", "13"] and u_pass == current_db_pass:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
