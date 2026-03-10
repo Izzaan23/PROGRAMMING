@@ -42,6 +42,8 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "page" not in st.session_state:
     st.session_state.page = "login"
+if "user_id" not in st.session_state:
+    st.session_state.user_id = ""
 
 # --- 3. ANTARAMUKA LOG MASUK ---
 if not st.session_state.logged_in:
@@ -74,10 +76,10 @@ if not st.session_state.logged_in:
             u_id = st.text_input("ID Pengguna")
             u_pass = st.text_input("Kata Laluan", type="password")
             
-            # --- PERUBAHAN DI SINI: Membenarkan ID 11, 12, dan 13 ---
             if st.button("🔓 Log Masuk", use_container_width=True):
                 if u_id in ["11", "12", "13"] and u_pass == current_db_pass:
                     st.session_state.logged_in = True
+                    st.session_state.user_id = u_id # Simpan ID untuk paparan nama
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan salah.")
@@ -116,7 +118,11 @@ def kira_luas(df):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 # --- 5. SIDEBAR ---
-st.sidebar.markdown("### hi, izzaan! 👋") 
+# --- PERUBAHAN DI SINI: Paparan nama mengikut ID ---
+names = {"11": "izzaan", "12": "adam muqhris", "13": "alif"}
+user_display = names.get(st.session_state.user_id, "Pengguna")
+st.sidebar.markdown(f"### hi, {user_display}! 👋") 
+
 st.sidebar.title("🏠 Dashboard Tetapan")
 p_point = st.sidebar.checkbox("Papar Point Stesen", value=True)
 s_point = st.sidebar.slider("Saiz Point Stesen", 1, 15, 5)
